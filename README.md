@@ -10,6 +10,7 @@ A free and open-source tool to download music from YouTube as MP3 files, built w
 
 - Python 3.x
 - Git
+- [ffmpeg](https://ffmpeg.org/download.html) (required for audio conversion to MP3)
 
 ### Installation
 

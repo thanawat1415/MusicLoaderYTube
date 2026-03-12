@@ -1,44 +1,78 @@
 import os
-from pytube import Search, YouTube
+import yt_dlp
 
-choice = input("Enter '1' to input a music title or '2' to use a text file: ")
 
-if choice == '1':
-    # Input the music title
-    title = input("Enter the music title: ")
-    music_titles = [title]
-elif choice == '2':
-    # Read music titles from a text file
-    file_path = os.path.join(os.getcwd(), "music_titles.txt")
-    with open(file_path, 'r') as file:
-        music_titles = [t for t in file.read().splitlines() if t.strip()]
-else:
-    print("Invalid choice. Please try again.")
-    exit()
+def search_youtube(title):
+    """Search YouTube for a title and return the URL of the top result."""
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'default_search': 'ytsearch1',
+        'skip_download': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(f"ytsearch1:{title}", download=False)
+    entries = info.get('entries', [])
+    if not entries:
+        return None
+    return entries[0].get('webpage_url') or entries[0].get('url')
 
-project_folder = os.getcwd()
-folder_name = os.path.join(project_folder, "audio_files")
-os.makedirs(folder_name, exist_ok=True)
 
-for title in music_titles:
-    # Search for the video and get the top result
-    search_results = Search(title)
-    if not search_results.results:
-        print(f"No results found for: {title}")
-        continue
-    video_url = search_results.results[0].watch_url
+def download_as_mp3(video_url, folder_name):
+    """Download the audio from a YouTube URL and save it as MP3."""
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(folder_name, '%(title)s.%(ext)s'),
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'quiet': False,
+        'no_warnings': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
 
-    # Download the video
-    video = YouTube(video_url)
-    stream = video.streams.filter(only_audio=True).first()
-    if stream is None:
-        print(f"No audio stream available for: {title}")
-        continue
-    stream.download(output_path=folder_name)
 
-    file_path = os.path.join(folder_name, video.title + ".mp4")
+def main():
+    choice = input("Enter '1' to input a music title or '2' to use a text file: ")
 
-    mp3_file_path = os.path.join(folder_name, video.title + ".mp3")
-    os.rename(file_path, mp3_file_path)
+    if choice == '1':
+        title = input("Enter the music title: ")
+        music_titles = [title]
+    elif choice == '2':
+        file_path = os.path.join(os.getcwd(), "music_titles.txt")
+        with open(file_path, 'r') as file:
+            music_titles = [t for t in file.read().splitlines() if t.strip()]
+    else:
+        print("Invalid choice. Please try again.")
+        return
 
-print("Music videos downloaded and converted to MP3 successfully!")
+    folder_name = os.path.join(os.getcwd(), "audio_files")
+    os.makedirs(folder_name, exist_ok=True)
+
+    success_count = 0
+    fail_count = 0
+
+    for title in music_titles:
+        print(f"Downloading: {title}...")
+        try:
+            video_url = search_youtube(title)
+            if not video_url:
+                print(f"  No results found for: {title}")
+                fail_count += 1
+                continue
+            download_as_mp3(video_url, folder_name)
+            print(f"  Done: {title}")
+            success_count += 1
+        except Exception as e:
+            print(f"  Failed to download '{title}': {e}")
+            fail_count += 1
+
+    print(f"\nFinished — {success_count} succeeded, {fail_count} failed.")
+
+
+if __name__ == "__main__":
+    main()
+
